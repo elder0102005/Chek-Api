@@ -1,104 +1,149 @@
 
-#health-check-api
+#check-api
 
-API de verificação de saúde (Health Check) construída em Node.js com TypeScript, monitorando em tempo real a conectividade com um banco de dados relacional (PostgreSQL) e um banco não-relacional (MongoDB).
+API REST para registrar, consultar e gerenciar verificações ("checks") de endpoints externos, funcionando como um pequeno monitor de disponibilidade e integridade de serviços. Permite criar checks apontando para URLs e métodos HTTP, acompanhar sua configuração e consultar um resumo operacional do sistema.
 
-Este projeto foi desenvolvido como demonstração prática de boas práticas de backend moderno: tipagem estática com TypeScript, testes automatizados, containerização com Docker e um pipeline de integração contínua (CI) via GitHub Actions.
+O projeto é composto por um backend em NestJS (já pronto) e um frontend em React para visualização e interação com os recursos expostos pela API. A ideia central é oferecer uma base simples de monitoramento e administração de rotas que podem ser testadas em uma interface visual, servindo como demonstração prática de arquitetura em camadas com NestJS e consumo de API com React.
 
-Health checks são um padrão amplamente usado em sistemas distribuídos — orquestradores como Kubernetes, ECS e load balancers consultam esse tipo de endpoint para decidir se uma instância da aplicação deve continuar recebendo tráfego.
-
-## Funcionalidades principais
-
-- **API REST em TypeScript**: endpoint `GET /health` que retorna o status da aplicação e de suas dependências.
-- **Verificação de PostgreSQL**: checagem ativa da conexão com o banco relacional a cada chamada.
-- **Verificação de MongoDB**: checagem ativa da conexão com o banco não-relacional a cada chamada.
-- **Resposta em falha controlada**: se qualquer dependência estiver fora do ar, a API responde `503` com `"status": "degraded"`, em vez de travar ou mentir dizendo que está tudo bem.
-- **Testes automatizados**: cobertura com Jest e Supertest, incluindo cenário de sucesso e de falha do endpoint.
-- **Ambiente containerizado**: `Dockerfile` multi-stage otimizado e `docker-compose.yml` que sobe API, PostgreSQL e MongoDB juntos.
-- **Pipeline de CI**: workflow no GitHub Actions que roda type-check, testes e build a cada push/PR.
-
-## Requisitos de Sistema
-
-- Node.js 20.x ou superior
-- Docker e Docker Compose (para rodar via containers, recomendado)
-- npm
-
-## Instalação e Configuração
-
-### 1. Clonar o projeto
-
-Certifique-se de que a estrutura de pastas do `health-check-api` esteja extraída no seu ambiente.
-
-### 2. Configurar variáveis de ambiente
-
-Copie o arquivo de exemplo e ajuste se necessário:
-
-```bash
-cp .env.example .env
-```
-
-### 3. Instalar dependências (apenas se for rodar sem Docker)
-
-```bash
+Funcionalidades
+GET /api/health: verifica se a API está funcionando corretamente.
+GET /api/dashboard/summary: retorna um resumo do estado do dashboard (total de checks, checks ativos, falhas, uptime).
+POST /api/checks: cria um novo check de monitoramento.
+GET /api/checks: lista todos os checks cadastrados.
+GET /api/checks/:id: retorna um check específico pelo identificador.
+PUT /api/checks/:id: atualiza os dados de um check existente.
+DELETE /api/checks/:id: remove um check do armazenamento em memória.
+Interface visual (frontend): permite cadastrar rotas, editar parâmetros e testar requisições diretamente no navegador, sem precisar de ferramentas externas como Postman.
+Requisitos de Sistema
+Node.js 18 ou superior
+npm 9 ou superior
+Git (opcional, para clonar o repositório)
+Navegador moderno para acessar o frontend
+Instalação e Configuração
+1. Clonar o projeto
+bash
+cd "check api"
+2. Instalar dependências do backend
+bash
+cd backend
 npm install
-```
+3. Configurar a porta do backend (opcional)
 
-## Como Executar o Projeto
+Crie um arquivo .env na pasta backend/ se quiser definir uma porta específica:
 
-Você tem duas formas de executar o `health-check-api`:
+env
+PORT=3000
 
-### 1. Via Docker (Recomendado)
+O backend também funciona sem esse arquivo, pois usa process.env.PORT || 3000 no bootstrap.
 
-Sobe a API junto com o PostgreSQL e o MongoDB em containers isolados:
+4. Instalar dependências do frontend
+bash
+cd ../frontend
+npm install
+5. Apontar o frontend para a API (opcional)
 
-```bash
-docker-compose up --build
-```
+Se a API estiver rodando em outra URL, configure a variável de ambiente VITE_API_BASE no frontend. Por padrão, ele usa:
 
-A API estará disponível em `http://localhost:3000`. Essa versão não exige que você tenha PostgreSQL ou MongoDB instalados na sua máquina — tudo roda dentro dos containers.
+text
+http://localhost:3000/api
+Como Executar o Projeto
+Backend
 
-### 2. Via Código-Fonte
+No diretório backend:
 
-Caso prefira rodar diretamente, certificando-se de ter um PostgreSQL e um MongoDB acessíveis localmente:
+bash
+npm run start:dev
 
-```bash
+Disponível em http://localhost:3000, com prefixo global de rota em /api.
+
+Frontend
+
+No diretório frontend:
+
+bash
 npm run dev
-```
 
-## Como Utilizar
+O Vite normalmente inicia em http://localhost:5173. O frontend acessa a API na URL configurada em VITE_API_BASE ou, por padrão, em http://localhost:3000/api.
 
-1. Suba o projeto através de um dos métodos acima.
-2. Faça uma requisição `GET` para o endpoint de saúde:
+Os dois precisam estar rodando ao mesmo tempo (em terminais separados) para a interface funcionar por completo.
 
-```bash
-curl http://localhost:3000/health
-```
+Como Utilizar
+Criar um check
+bash
+curl -X POST http://localhost:3000/api/checks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "GitHub API",
+    "url": "https://api.github.com",
+    "method": "GET",
+    "intervalMinutes": 5,
+    "timeoutMs": 5000,
+    "active": true
+  }'
 
-3. A resposta indica o status geral e de cada dependência:
+Resposta esperada:
 
-```json
+json
+{
+  "id": "1",
+  "name": "GitHub API",
+  "url": "https://api.github.com",
+  "method": "GET",
+  "intervalMinutes": 5,
+  "timeoutMs": 5000,
+  "active": true,
+  "createdAt": "2026-09-17T00:00:00.000Z"
+}
+Listar checks
+bash
+curl http://localhost:3000/api/checks
+Verificar a saúde da API
+bash
+curl http://localhost:3000/api/health
+json
 {
   "status": "ok",
-  "timestamp": "2026-08-24T12:00:00.000Z",
-  "responseTimeMs": 8,
-  "dependencies": {
-    "postgres": "up",
-    "mongo": "up"
-  }
+  "timestamp": "2026-09-17T00:00:00.000Z",
+  "service": "check-api"
 }
-```
-
-Se alguma dependência estiver indisponível, o `status` muda para `"degraded"` e o código HTTP retornado é `503`.
-
-## Estrutura do Projeto
-
-- `src/`: diretório principal contendo o código-fonte da aplicação.
-  - `index.ts`: script de entrada, conecta aos bancos e sobe o servidor.
-  - `app.ts`: criação e configuração do app Express, isolada do `index.ts` para facilitar os testes.
-  - `config/`: conexão e verificação de saúde do PostgreSQL (`database.ts`) e do MongoDB (`mongo.ts`).
-  - `controllers/`: lógica de orquestração do endpoint de health check.
-  - `routes/`: mapeamento das rotas HTTP para os controllers.
-- `tests/`: testes automatizados com Jest e Supertest.
-- `.github/workflows/ci.yml`: pipeline de integração contínua.
-- `Dockerfile`: build multi-stage otimizado para produção.
-- `docker-compose.yml`: orquestração local de API, PostgreSQL e MongoDB.
+Consultar o resumo do dashboard
+bash
+curl http://localhost:3000/api/dashboard/summary
+json
+{
+  "totalChecks": 0,
+  "activeChecks": 0,
+  "failedChecks": 0,
+  "uptime": 0,
+  "lastUpdated": "2026-09-17T00:00:00.000Z"
+}
+Estrutura do Projeto
+text
+check-api/
+├── README.md
+├── backend/
+│   └── src/
+│       ├── app.module.ts        # registra os módulos da aplicação
+│       ├── main.ts              # bootstrap do NestJS e habilitação de CORS
+│       ├── common/               # enums e types compartilhados
+│       └── modules/
+│           ├── checks/          # criação, listagem, atualização e remoção dos checks
+│           ├── dashboard/       # resumo do estado do dashboard
+│           └── health/          # verificação de saúde da API
+└── frontend/
+    └── src/
+        ├── App.tsx              # tela principal do MVP
+        ├── main.tsx             # entrada da aplicação React
+        ├── components/
+        │   ├── RequestEditor.tsx
+        │   ├── ResponsePanel.tsx
+        │   └── Sidebar.tsx
+        └── services/
+            └── api.ts           # cliente para consumo da API
+Observações Especiais
+O backend já existe e foi entregue pronto; ele deve ser usado como base do projeto e não deve ser modificado sem necessidade.
+Os dados são armazenados em memória — não há banco de dados configurado. Ao reiniciar o backend, os checks criados anteriormente são perdidos.
+O módulo de dashboard expõe um resumo estático e não realiza monitoramento real de endpoints em tempo real; esse comportamento é parte do MVP.
+O CORS está habilitado no bootstrap do NestJS com app.enableCors(), permitindo que o frontend em outra porta acesse a API local.
+Em ambientes com portas diferentes, ajuste VITE_API_BASE no frontend ou configure a origem permitida no backend.
+Sem Docker, CI/CD ou testes automatizados configurados no estado atual do projeto.
